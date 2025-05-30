@@ -43,8 +43,8 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
     {
-        userId: user._id,   // или просто id
-        name: user.name,    // ✅ добавь имя
+        userId: user._id,  
+        name: user.name,    
         role: user.role
     },
     process.env.JWT_SECRET,

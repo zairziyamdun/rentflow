@@ -18,7 +18,7 @@ const propertySchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  images: [String], // пока просто массив URL-ов
+  images: [String],
   description: {
     type: String,
   },
