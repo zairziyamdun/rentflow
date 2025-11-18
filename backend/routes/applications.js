@@ -6,9 +6,12 @@ const Lease = require('../models/Lease');
 const Payment = require('../models/Payment');
 const authMiddleware = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/roleMiddleware');
+const validate = require('../middlewares/validate');
+const { createLease } = require('../services/LeaseService');
+const { createApplicationSchema, updateApplicationSchema } = require('../validators/applicationValidators');
 
 // Подать заявку
-router.post('/', authMiddleware, requireRole('tenant'), async (req, res) => {
+router.post('/', authMiddleware, requireRole('tenant'), validate(createApplicationSchema), async (req, res) => {
   try {
     const { propertyId } = req.body;
 
@@ -49,8 +52,8 @@ router.get('/received', authMiddleware, requireRole('landlord', 'admin'), async 
   }
 });
 
-//Одобрение/отклонение заявки
-router.put('/:id', authMiddleware, requireRole('landlord', 'admin'), async (req, res) => {
+// Одобрение/отклонение заявки
+router.put('/:id', authMiddleware, requireRole('landlord', 'admin'), validate(updateApplicationSchema), async (req, res) => {
   try {
     const { status } = req.body;
     const application = await Application.findById(req.params.id);
@@ -63,45 +66,20 @@ router.put('/:id', authMiddleware, requireRole('landlord', 'admin'), async (req,
       const property = await Property.findById(application.propertyId);
       if (!property) return res.status(404).json({ message: 'Объект не найден' });
 
-      const now = new Date();
-      const startDate = new Date(now);
-      const firstPaymentDate = new Date(now);
-      firstPaymentDate.setDate(firstPaymentDate.getDate() + 3); 
-
-      const lease = new Lease({
-        propertyId: property._id,
+      await createLease({
+        propertyId: application.propertyId,
         tenantId: application.tenantId,
-        startDate,
-      });
-
-      await lease.save();
-
-      const months = 3;
-      const payments = [];
-
-      for (let i = 0; i < months; i++) {
-        const dueDate = new Date(firstPaymentDate);
-        dueDate.setMonth(dueDate.getMonth() + i);
-
-        payments.push(new Payment({
-          leaseId: lease._id,
-          amount: property.price,
-          dueDate,
-        }));
-      }
-
-      const saved = await Payment.insertMany(payments);
-      lease.payments = saved.map(p => p._id);
-      await lease.save();
-      await Property.findByIdAndUpdate(application.propertyId, {
-        available: false,
+        landlordId: property.ownerId,
+        months: 3,
+        monthlyRent: property.price,
       });
     }
 
     res.json({ message: `Заявка обновлена: ${status}` });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Ошибка при обновлении заявки' });
+    const status = err.statusCode || 500;
+    res.status(status).json({ message: err.message || 'Ошибка при обновлении заявки' });
   }
 });
 

@@ -4,7 +4,7 @@ const User = require('../models/User');
 const authMiddleware = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/roleMiddleware');
 
-// 📋 Получить всех пользователей
+// Получить всех пользователей
 router.get('/users', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const users = await User.find().select('-passwordHash');
@@ -14,7 +14,7 @@ router.get('/users', authMiddleware, requireRole('admin'), async (req, res) => {
   }
 });
 
-// ✏️ Изменить роль пользователя
+// Изменить роль пользователя
 router.put('/users/:id/role', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { role } = req.body;
@@ -37,6 +37,7 @@ router.put('/users/:id/role', authMiddleware, requireRole('admin'), async (req, 
 
 const Lease = require('../models/Lease');
 const Property = require('../models/Property');
+const { deleteProperty } = require('../services/PropertyService');
 
 router.delete('/users/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
@@ -65,7 +66,7 @@ router.delete('/users/:id', authMiddleware, requireRole('admin'), async (req, re
 });
 
 
-// 📋 Получить все объекты с владельцами
+// Получить все объекты с владельцами
 router.get('/properties', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const properties = await Property.find().populate('ownerId', 'name email');
@@ -75,19 +76,20 @@ router.get('/properties', authMiddleware, requireRole('admin'), async (req, res)
   }
 });
 
-// ❌ Удалить объект
+// Удалить объект
 router.delete('/properties/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
-    await Property.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Объект удалён' });
-  } catch {
-    res.status(500).json({ message: 'Ошибка при удалении объекта' });
+    const result = await deleteProperty(req.params.id);
+    res.json(result);
+  } catch (err) {
+    const status = err.statusCode || 500;
+    res.status(status).json({ message: err.message || 'Ошибка при удалении объекта' });
   }
 });
 
 const Complaint = require('../models/Complaint');
 
-// 📋 Получить все жалобы
+// Получить все жалобы
 router.get('/complaints', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const complaints = await Complaint.find()
@@ -106,7 +108,7 @@ router.get('/complaints', authMiddleware, requireRole('admin'), async (req, res)
 });
 
 
-// ❌ Удалить жалобу
+// Удалить жалобу
 router.delete('/complaints/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     await Complaint.findByIdAndDelete(req.params.id);

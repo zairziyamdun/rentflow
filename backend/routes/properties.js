@@ -3,14 +3,12 @@ const router = express.Router();
 const Property = require('../models/Property');
 const authMiddleware = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/roleMiddleware');
-const Application = require('../models/Application');
-const Lease = require('../models/Lease');
-const Payment = require('../models/Payment');
-const Complaint = require('../models/Complaint');
-
+const validate = require('../middlewares/validate');
+const { deleteProperty } = require('../services/PropertyService');
+const { createPropertySchema, updatePropertySchema } = require('../validators/propertyValidators');
 
 // ➕ Создание объекта (только для владельцев)
-router.post('/', authMiddleware, requireRole('landlord', 'admin'), async (req, res) => {
+router.post('/', authMiddleware, requireRole('landlord', 'admin'), validate(createPropertySchema), async (req, res) => {
   try {
     const property = new Property({
       ...req.body,
@@ -70,7 +68,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // ✏️ Обновить объект (только владелец)
-router.put('/:id', authMiddleware, requireRole('landlord', 'admin'), async (req, res) => {
+router.put('/:id', authMiddleware, requireRole('landlord', 'admin'), validate(updatePropertySchema), async (req, res) => {
   try {
     const property = await Property.findById(req.params.id);
     if (!property) return res.status(404).json({ message: 'Объект не найден' });
@@ -97,20 +95,12 @@ router.delete('/:id', authMiddleware, requireRole('landlord', 'admin'), async (r
       return res.status(403).json({ message: 'Нет доступа для удаления' });
     }
 
-    await Promise.all([
-        Application.deleteMany({ propertyId: property._id }),
-        Lease.deleteMany({ propertyId: property._id }),
-        Payment.deleteMany({ propertyId: property._id }),
-        Complaint.deleteMany({ targetId: property._id, targetType: 'property' }),
-    ]);
+    const result = await deleteProperty(property._id);
 
-    await property.deleteOne();
-
-    res.json({ message: 'Объект и связанные записи удалены' });
-
-
+    res.json(result);
   } catch (err) {
-    res.status(500).json({ message: 'Ошибка при удалении объекта' });
+    const status = err.statusCode || 500;
+    res.status(status).json({ message: err.message || 'Ошибка при удалении объекта' });
   }
 });
 

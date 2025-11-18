@@ -24,9 +24,13 @@ const userSchema = new mongoose.Schema({
     default: Date.now,
   },
   deleted: {
-  type: Boolean,
-  default: false,
-},
+    type: Boolean,
+    default: false,
+  },
+  tokenVersion: {
+    type: Number,
+    default: 0,
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);

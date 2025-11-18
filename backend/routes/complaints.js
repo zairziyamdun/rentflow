@@ -3,9 +3,11 @@ const router = express.Router();
 const Complaint = require('../models/Complaint');
 const authMiddleware = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/roleMiddleware');
+const validate = require('../middlewares/validate');
+const { createComplaintSchema, updateComplaintSchema } = require('../validators/complaintValidators');
 
-// ➕ Отправить жалобу (любой пользователь)
-router.post('/', authMiddleware, async (req, res) => {
+// Отправить жалобу (любой пользователь)
+router.post('/', authMiddleware, validate(createComplaintSchema), async (req, res) => {
   try {
     const { targetId, targetType, message } = req.body;
 
@@ -23,7 +25,7 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// 📋 Просмотреть свои жалобы (любой пользователь)
+// Просмотреть свои жалобы (любой пользователь)
 router.get('/my', authMiddleware, async (req, res) => {
   try {
     const complaints = await Complaint.find({ userId: req.user.userId })
@@ -53,7 +55,7 @@ router.delete('/my/:id', authMiddleware, async (req, res) => {
 });
 
 
-// 📋 Просмотреть все жалобы (только admin)
+// Просмотреть все жалобы (только admin)
 router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const complaints = await Complaint.find()
@@ -66,8 +68,8 @@ router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
   }
 });
 
-// ✏️ Обновить статус жалобы (только admin)
-router.put('/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+// Обновить статус жалобы (только admin)
+router.put('/:id', authMiddleware, requireRole('admin'), validate(updateComplaintSchema), async (req, res) => {
   try {
     const { status } = req.body;
 
@@ -83,7 +85,7 @@ router.put('/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   }
 });
 
-// ❌ Удалить жалобу (только admin)
+// Удалить жалобу (только admin)
 router.delete('/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const complaint = await Complaint.findByIdAndDelete(req.params.id);

@@ -1,61 +1,21 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const authController = require('../controllers/authController');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
+const validate = require('../middlewares/validate');
+const { registerSchema, loginSchema, refreshSchema } = require('../validators/authValidators');
 
 // Регистрация
-router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'Email уже используется' });
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    const newUser = new User({
-      name,
-      email,
-      passwordHash,
-    });
-
-    await newUser.save();
-
-    res.status(201).json({ message: 'Пользователь зарегистрирован' });
-  } catch (err) {
-    res.status(500).json({ message: 'Ошибка сервера' });
-  }
-});
+router.post('/register', validate(registerSchema), authController.register);
 
 // Логин
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
+router.post('/login', validate(loginSchema), authController.login);
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+// Обновление токенов
+router.post('/refresh', validate(refreshSchema), authController.refresh);
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) return res.status(401).json({ message: 'Неверный пароль' });
-
-    const token = jwt.sign(
-    {
-        userId: user._id,  
-        name: user.name,    
-        role: user.role
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' }
-    );
-
-    res.status(200).json({ token, user: { id: user._id, name: user.name, role: user.role } });
-  } catch (err) {
-    res.status(500).json({ message: 'Ошибка сервера' });
-  }
-});
+// Logout (инвалидация refresh через tokenVersion)
+router.post('/logout', authMiddleware, authController.logout);
 
 router.get('/me', authMiddleware, async (req, res) => {
   try {

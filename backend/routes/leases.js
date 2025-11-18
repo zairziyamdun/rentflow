@@ -6,51 +6,30 @@ const Property = require('../models/Property');
 const Application = require('../models/Application');
 const authMiddleware = require('../middleware/authMiddleware');
 const requireRole = require('../middleware/roleMiddleware');
+const validate = require('../middlewares/validate');
+const { createLease } = require('../services/LeaseService');
+const { createLeaseSchema } = require('../validators/leaseValidators');
 
 // Создание аренды (после одобрения заявки)
-router.post('/', authMiddleware, requireRole('landlord', 'admin'), async (req, res) => {
+router.post('/', authMiddleware, requireRole('landlord', 'admin'), validate(createLeaseSchema), async (req, res) => {
   try {
-    const { propertyId, tenantId, startDate, months } = req.body;
+    const { propertyId, tenantId, months } = req.body;
 
-    const property = await Property.findById(propertyId);
-    if (!property || property.ownerId.toString() !== req.user.userId) {
-      return res.status(403).json({ message: 'Нет доступа к объекту' });
-    }
-
-    // создаем аренду
-    const lease = new Lease({
+    const lease = await createLease({
       propertyId,
       tenantId,
-      startDate,
+      landlordId: req.user.userId,
+      months,
+      monthlyRent: req.body.monthlyRent,
     });
 
-    await lease.save();
+    // Обновляем статус заявок этого арендатора на этот объект
+    await Application.updateMany({ propertyId, tenantId }, { $set: { status: 'approved' } });
 
-    // создаем платежи на N месяцев вперёд
-    const payments = [];
-    for (let i = 0; i < months; i++) {
-      const due = new Date(startDate);
-      due.setMonth(due.getMonth() + i);
-      payments.push(new Payment({
-        leaseId: lease._id,
-        amount: property.price,
-        dueDate: due,
-      }));
-    }
-
-    const savedPayments = await Payment.insertMany(payments);
-    lease.payments = savedPayments.map(p => p._id);
-    await lease.save();
-
-    // Обновляем статус заявки
-    await Application.updateMany(
-      { propertyId, tenantId },
-      { $set: { status: 'approved' } }
-    );
-
-    res.status(201).json({ lease, payments: savedPayments });
+    res.status(201).json({ lease });
   } catch (err) {
-    res.status(500).json({ message: 'Ошибка при создании аренды' });
+    const status = err.statusCode || 500;
+    res.status(status).json({ message: err.message || 'Ошибка при создании аренды' });
   }
 });
 
